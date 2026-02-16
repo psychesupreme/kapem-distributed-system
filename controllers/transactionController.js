@@ -178,3 +178,35 @@ exports.getAdminWarehouseData = async (req, res) => {
         res.end(JSON.stringify({ error: err.message }));
     }
 };
+exports.updateWarehouseStatus = async (req, res) => {
+    let client;
+    try {
+        const { request_id, town, status } = req.body;
+        console.log(`📝 [Admin] Updating Request ${request_id} to ${status}...`);
+
+        // 1. Routing Logic (Again - to find the right shard)
+        const regionMap = {
+            'MURANGA': centralPool, 'NYERI': centralPool, 'KIAMBU': centralPool,
+            'NAIVASHA': riftPool, 'NAKURU': riftPool, 'NAROK': riftPool
+        };
+        // Simple logic to map back from Admin's "Town" hint
+        const targetDB = regionMap[town] || riftPool; 
+
+        // 2. Connect and Update
+        client = await targetDB.connect();
+        await client.query(
+            'UPDATE warehouse_requests SET request_status = $1 WHERE request_id = $2',
+            [status, request_id]
+        );
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ message: "✅ Status Updated Successfully" }));
+
+    } catch (err) {
+        console.error(err);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+    } finally {
+        if (client) client.release();
+    }
+};

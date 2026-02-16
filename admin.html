@@ -68,9 +68,27 @@
                 const data = await res.json();
                 
                 const tbody = document.getElementById('warehouseData');
-                tbody.innerHTML = ''; // Clear old data
+                // clear old data
+                tbody.innerHTML = ''; 
+
+                // Add Table Header for Actions if missing
+                const headerRow = document.querySelector('#warehouseTable thead tr');
+                if (!headerRow.innerHTML.includes('Actions')) {
+                    headerRow.innerHTML += '<th>Actions</th>';
+                }
 
                 data.forEach(req => {
+                    // Only show buttons if pending
+                    let actionButtons = '';
+                    if (req.request_status === 'PENDING') {
+                        actionButtons = `
+                            <button onclick="updateStatus('${req.request_id}', '${req.region}', 'APPROVED')" style="background:#4caf50; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius:4px;">✔</button>
+                            <button onclick="updateStatus('${req.request_id}', '${req.region}', 'REJECTED')" style="background:#f44336; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius:4px;">✖</button>
+                        `;
+                    } else {
+                        actionButtons = `<small>${req.request_status}</small>`;
+                    }
+
                     const row = `<tr>
                         <td>${req.request_id.substring(0,8)}...</td>
                         <td>${req.farmer_name} <br><small>${req.farmer_phone}</small></td>
@@ -79,27 +97,36 @@
                         <td style="color:#4caf50">KES ${req.storage_fee}</td>
                         <td>${req.region}</td>
                         <td><span class="status-badge ${req.request_status.toLowerCase()}">${req.request_status}</span></td>
+                        <td>${actionButtons}</td>
                     </tr>`;
                     tbody.innerHTML += row;
                 });
             } catch (err) {
                 console.error("Admin API Error:", err);
             }
+        }
 
-            // 2. Fetch System Status
+        // NEW FUNCTION: Handle the Button Click
+        async function updateStatus(id, regionRaw, newStatus) {
+            // Determine the town based on the region string to route correctly
+            // (e.g., "RIFT (Naivasha)" -> "NAIVASHA")
+            let town = "NAIROBI"; 
+            if(regionRaw.includes("RIFT")) town = "NAIVASHA";
+            if(regionRaw.includes("CENTRAL")) town = "NYERI";
+
+            if(!confirm(`Are you sure you want to mark this as ${newStatus}?`)) return;
+
             try {
-                const res = await fetch('http://localhost:3000/api/status');
-                const status = await res.json();
-                const statusDiv = document.getElementById('nodeStatus');
-                statusDiv.innerHTML = `
-                    <p>✅ <b>API Gateway:</b> Online</p>
-                    <p>✅ <b>HQ Node:</b> Connected</p>
-                    <p>✅ <b>Central Shard:</b> Connected</p>
-                    <p>✅ <b>Rift Shard:</b> Connected</p>
-                    <p><i>Mode: ${status.mode || 'Dockerized'}</i></p>
-                `;
+                const res = await fetch('http://localhost:3000/api/admin/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ request_id: id, town: town, status: newStatus })
+                });
+                const result = await res.json();
+                alert(result.message);
+                fetchAdminData(); // Refresh table
             } catch (err) {
-                document.getElementById('nodeStatus').innerHTML = "❌ CRITICAL: SYSTEM OFFLINE";
+                alert("Error updating status");
             }
         }
 

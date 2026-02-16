@@ -44,6 +44,14 @@ const server = http.createServer(async (req, res) => {
     else if (reqUrl.pathname === '/api/admin/warehouse' && req.method === 'GET') {
         transactionController.getAdminWarehouseData(req, res);
     }
+    else if (reqUrl.pathname === '/api/admin/update' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            req.body = JSON.parse(body);
+            transactionController.updateWarehouseStatus(req, res);
+        });
+    }
     else {
         res.writeHead(404); res.end("Not Found");
     }
