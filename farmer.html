@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAPEM Farmer Portal</title>
+    <style>
+        :root { --primary: #2e7d32; --light: #e8f5e9; --text: #1b5e20; }
+        body { font-family: sans-serif; margin: 0; padding: 0; background: #f4f4f9; color: #333; }
+        
+        .header { background: var(--primary); color: white; padding: 20px; text-align: center; }
+        .container { max-width: 600px; margin: 20px auto; padding: 20px; background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        h2 { color: var(--text); border-bottom: 2px solid var(--light); padding-bottom: 10px; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        
+        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #1b5e20; }
+        
+        .status-box { margin-top: 20px; padding: 15px; border-radius: 6px; display: none; }
+        .success { background: var(--light); color: var(--text); border: 1px solid var(--primary); }
+        .error { background: #ffebee; color: #c62828; border: 1px solid #c62828; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>🚜 KAPEM Farmer Portal</h1>
+        <p>Kenya Agricultural Produce Exchange Market</p>
+    </div>
+
+    <div class="container">
+        <h2>Submit Produce for Warehousing</h2>
+        <form id="warehouseForm">
+            
+            <div class="form-group">
+                <label>📍 Select Your Nearest Depot</label>
+                <select id="town" required>
+                    <optgroup label="Central Region (Cold Storage)">
+                        <option value="MURANGA">Murang'a Depot</option>
+                        <option value="NYERI">Nyeri Depot</option>
+                    </optgroup>
+                    <optgroup label="Rift Region (Dry Storage)">
+                        <option value="NAIVASHA">Naivasha Depot</option>
+                        <option value="NAKURU">Nakuru Depot</option>
+                    </optgroup>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>👤 Farmer Name</label>
+                <input type="text" id="name" placeholder="Enter your full name" required>
+            </div>
+
+            <div class="form-group">
+                <label>📱 M-Pesa Number</label>
+                <input type="tel" id="phone" placeholder="2547..." required>
+            </div>
+
+            <div class="form-group">
+                <label>🥑 Produce Type</label>
+                <select id="produce">
+                    <option value="Avocado">Avocados (Export Grade)</option>
+                    <option value="Maize">Maize (90kg Bags)</option>
+                    <option value="Coffee">Coffee Beans</option>
+                    <option value="Flowers">Cut Flowers</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>⚖️ Quantity (KG)</label>
+                <input type="number" id="qty" placeholder="e.g. 500" required>
+            </div>
+
+            <div class="form-group">
+                <label>🏭 Storage Scale</label>
+                <select id="storageType">
+                    <option value="Small Scale">Small Scale (< 1 Ton)</option>
+                    <option value="Large Scale">Large Scale (> 1 Ton)</option>
+                </select>
+            </div>
+
+            <button type="submit">📲 Submit & Pay Booking Fee</button>
+        </form>
+
+        <div id="statusBox" class="status-box"></div>
+    </div>
+
+    <script>
+        document.getElementById('warehouseForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const statusBox = document.getElementById('statusBox');
+            statusBox.style.display = 'block';
+            statusBox.innerText = "⏳ Connecting to Depot...";
+            statusBox.className = 'status-box';
+
+            const payload = {
+                town: document.getElementById('town').value,
+                farmer_name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value,
+                produce: document.getElementById('produce').value,
+                qty: parseFloat(document.getElementById('qty').value),
+                storage_type: document.getElementById('storageType').value
+            };
+
+            try {
+                const res = await fetch('http://localhost:3000/api/warehouse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+
+                if (data.status === 'success') {
+                    statusBox.innerHTML = `✅ <b>Success!</b><br>Request ID: ${data.request_id}<br>Fee Paid: KES ${data.fee_paid}<br>Check your phone for M-Pesa prompt.`;
+                    statusBox.classList.add('success');
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (err) {
+                statusBox.innerHTML = `❌ <b>Error:</b> ${err.message}`;
+                statusBox.classList.add('error');
+            }
+        });
+    </script>
+</body>
+</html>

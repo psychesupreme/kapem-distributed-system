@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Helix Distributed Ledger</title>
+    <style>
+        /* DASHBOARD STYLING (HCI: Clean, Status-Oriented Design) */
+        :root { --bg: #1a1a2e; --card: #16213e; --accent: #0f3460; --text: #e94560; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; gap: 20px; padding: 20px; }
+        
+        /* The Control Panel */
+        #controls { width: 30%; background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        input, select, button { width: 100%; padding: 10px; margin: 10px 0; background: var(--accent); border: none; color: white; border-radius: 5px; }
+        button { background: var(--text); font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { transform: scale(1.02); }
+
+        /* The Network Graph Visualization */
+        #network-graph { width: 70%; display: flex; justify-content: space-around; align-items: center; position: relative; }
+        
+        .node { 
+            width: 120px; height: 120px; 
+            border-radius: 50%; 
+            background: #2a2a2a; border: 2px solid #555;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: all 0.3s ease;
+        }
+        .node.active { border-color: #00ff00; box-shadow: 0 0 20px #00ff00; }
+        .node h3 { margin: 0; font-size: 1.2rem; }
+        .node small { color: #aaa; }
+
+        /* Logs Console */
+        #logs { position: fixed; bottom: 0; left: 0; width: 100%; height: 150px; background: black; overflow-y: scroll; font-family: monospace; padding: 10px; border-top: 2px solid var(--text); }
+        .log-entry { margin: 2px 0; border-bottom: 1px solid #333; }
+        .log-success { color: #00ff00; }
+        .log-error { color: #ff0000; }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <h2>Helix Terminal</h2>
+        <div class="input-group">
+            <label>Origin Branch (Town)</label>
+            <select id="regionInput">
+                <optgroup label="Central Region (HQ: Murang'a)">
+                    <option value="MURANGA">Murang'a Town</option>
+                    <option value="NYERI">Nyeri</option>
+                    <option value="KIAMBU">Kiambu</option>
+                </optgroup>
+                <optgroup label="Rift Region (HQ: Naivasha)">
+                    <option value="NAIVASHA">Naivasha</option>
+                    <option value="NAKURU">Nakuru</option>
+                    <option value="NAROK">Narok</option>
+                </optgroup>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>Total Amount (KES)</label>
+            <input type="number" id="amountInput" placeholder="5000.00">
+        </div>
+        <div class="input-group">
+            <label>Cart Data (JSON)</label>
+            <textarea id="cartInput" rows="4" style="width:100%; background:var(--accent); color:white; border:none;">[{"item": "Fertilizer", "qty": 5}]</textarea>
+        </div>
+        <button onclick="app.submitTransaction()">Submit Transaction</button>
+    </div>
+
+    <div id="network-graph">
+        <div id="node-central" class="node"><h3>HQ Node</h3><small>Port 5432</small></div>
+        <div id="node-north" class="node"><h3>North</h3><small>Shard A</small></div>
+        <div id="node-south" class="node"><h3>South</h3><small>Shard B</small></div>
+    </div>
+
+    <div id="analytics-panel" style="background: var(--card); margin: 20px 0; padding: 20px; border-radius: 10px;">
+        <h2>🇰🇪 National Supply Chain Analytics</h2>
+        <div style="display: flex; gap: 20px; text-align: center;">
+            <div style="flex: 1; background: #2a2a2a; padding: 15px; border-radius: 8px;">
+                <h3 style="color: #aaa;">North Revenue</h3>
+                <h1 id="stat-north" style="color: #00ff00;">KES 0</h1>
+            </div>
+            <div style="flex: 1; background: #2a2a2a; padding: 15px; border-radius: 8px;">
+                <h3 style="color: #aaa;">South Revenue</h3>
+                <h1 id="stat-south" style="color: #ff0000;">KES 0</h1>
+            </div>
+            <div style="flex: 1; background: #2a2a2a; padding: 15px; border-radius: 8px; border: 1px solid var(--text);">
+                <h3 style="color: #fff;">Grand Total</h3>
+                <h1 id="stat-total">KES 0</h1>
+            </div>
+        </div>
+        <button onclick="app.fetchAnalytics()" style="margin-top: 15px; width: auto;">🔄 Refresh Analytics</button>
+    </div>
+
+    <div id="logs"></div>
+
+    <script src="app.js"></script>
+</body>
+</html>

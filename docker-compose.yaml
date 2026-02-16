@@ -1,0 +1,58 @@
+version: '3.8'
+
+services:
+  # 1. THE HQ DATABASE (Nairobi)
+  kapem-hq:
+    image: postgres:16-alpine
+    container_name: kapem_hq
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: securepass123
+      POSTGRES_DB: kapem_hq
+    ports:
+      - "5432:5432" # Maps localhost:5432 -> Container:5432
+    volumes:
+      - ./sql/hq_schema.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # 2. THE CENTRAL REGION DATABASE (Murang'a)
+  kapem-central:
+    image: postgres:16-alpine
+    container_name: kapem_central
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: securepass123
+      POSTGRES_DB: kapem_central
+    ports:
+      - "5433:5432" # Notice the port shift! 5433 -> 5432
+    volumes:
+      - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # 3. THE RIFT REGION DATABASE (Naivasha)
+  kapem-rift:
+    image: postgres:16-alpine
+    container_name: kapem_rift
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: securepass123
+      POSTGRES_DB: kapem_rift
+    ports:
+      - "5434:5432" # Shift again! 5434 -> 5432
+    volumes:
+      - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # 4. THE MIDDLEWARE API (Node.js)
+  kapem-api:
+    build: .
+    container_name: kapem_api
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST_HQ=kapem-hq
+      - DB_HOST_CENTRAL=kapem-central
+      - DB_HOST_RIFT=kapem-rift
+      - DB_USER=admin
+      - DB_PASS=securepass123
+    depends_on:
+      - kapem-hq
+      - kapem-central
+      - kapem-rift
