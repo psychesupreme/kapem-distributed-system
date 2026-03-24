@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAPEM | Warehouse Ops</title>
+    <link rel="stylesheet" href="global.css">
+    <style>
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; flex: 1; width: 100%; box-sizing: border-box; }
+        .card { background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        .header-flex { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; }
+        h2 { color: var(--primary); margin: 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid var(--border-color); color: #64748b; font-size: 0.85rem; text-transform: uppercase; }
+        td { padding: 15px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-color); font-size: 0.95rem; }
+        input, select { padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color); color: var(--text-color); font-weight: bold;}
+        .btn-save { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-save:hover { background: #14532d; }
+    </style>
+</head>
+<body>
+    <div class="container animate-up">
+        <div class="card">
+            <div class="header-flex">
+                <h2>📦 Automated Bin & Quality Management</h2>
+                <span id="regionLabel" style="background:var(--primary); color:white; padding:5px 15px; border-radius:20px; font-weight:bold; font-size:0.85rem;">Region: Loading...</span>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>ID (Lot)</th><th>Produce</th><th>Qty</th><th>Bin Assignment</th><th>Quality Status</th><th>Action</th></tr>
+                </thead>
+                <tbody id="inventoryBody">
+                    <tr><td colspan="6" style="text-align:center;">Loading Inventory...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="layout.js"></script>
+    <script>
+        const user = JSON.parse(localStorage.getItem('kapem_user'));
+        if (!user || !['HQ_ADMIN', 'REGION_ADMIN', 'WAREHOUSE_ADMIN'].includes(user.role)) window.location.href = 'login.html';
+        document.getElementById('regionLabel').innerText = `Depot: ${user.region_access}`;
+
+        function generateBin(depot) {
+            const map = { 'CENTRAL': 'C-NYE', 'RIFT': 'R-NAI', 'WESTERN': 'W-KIS', 'COAST': 'C-MOM', 'NORTHERN': 'N-GAR' };
+            const prefix = map[depot] || 'X-UNK';
+            const num = Math.floor(Math.random() * 900) + 100; // 100-999
+            return `${prefix}-${num}`;
+        }
+
+        async function loadInventory() {
+            try {
+                const res = await fetch(`http://localhost:3000/api/warehouse/inventory?region_access=${user.region_access}`);
+                if (!res.ok) throw new Error("Gateway blocked access.");
+                const data = await res.json();
+                const tbody = document.getElementById('inventoryBody');
+                tbody.innerHTML = '';
+                
+                if(data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No stock requiring bin management.</td></tr>';
+                    return;
+                }
+
+                data.forEach(item => {
+                    const shortId = item.request_id.split('-')[0].toUpperCase();
+                    const localTown = item.depot || user.region_access; 
+                    
+                    const displayBin = (item.storage_bin === 'UNASSIGNED') ? generateBin(localTown) : item.storage_bin;
+                    
+                    tbody.innerHTML += `
+                        <tr>
+                            <td><span style="font-family:monospace; color:#64748b;">#${shortId}</span><br><span style="font-size:0.75rem">${localTown}</span></td>
+                            <td><strong>${item.produce_type}</strong></td>
+                            <td>${item.quantity_kg} kg</td>
+                            <td><input type="text" id="bin_${item.request_id}" value="${displayBin}" style="width:120px;"></td>
+                            <td>
+                                <select id="qty_${item.request_id}">
+                                    <option value="CHECK PENDING" ${item.quality_status==='CHECK PENDING'?'selected':''}>Pending</option>
+                                    <option value="GRADE A" ${item.quality_status==='GRADE A'?'selected':''}>Grade A (Premium)</option>
+                                    <option value="GRADE B" ${item.quality_status==='GRADE B'?'selected':''}>Grade B (Standard)</option>
+                                    <option value="REJECTED" ${item.quality_status==='REJECTED'?'selected':''}>Rejected / Spoilage</option>
+                                </select>
+                            </td>
+                            <td><button class="btn-save" onclick="saveBin('${item.request_id}', '${localTown}')">Confirm & Save</button></td>
+                        </tr>
+                    `;
+                });
+            } catch(e) { document.getElementById('inventoryBody').innerHTML = `<tr><td colspan="6" style="color:red">${e.message}</td></tr>`; }
+        }
+
+        async function saveBin(id, town) {
+            const binVal = document.getElementById(`bin_${id}`).value;
+            const qtyVal = document.getElementById(`qty_${id}`).value;
+            try {
+                const res = await fetch('http://localhost:3000/api/warehouse/bin', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ request_id: id, town: town, storage_bin: binVal, quality_status: qtyVal })
+                });
+                
+                const data = await res.json();
+                
+                if(res.ok) {
+                    alert("✅ Bin routing saved to " + town + " shard.");
+                    loadInventory();
+                } else {
+                    throw new Error(data.error || "Update failed.");
+                }
+            } catch(e) { 
+                alert("❌ Error: " + e.message); 
+            }
+        }
+        loadInventory();
+    </script>
+</body>
+</html>

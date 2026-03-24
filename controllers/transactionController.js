@@ -1,212 +1,254 @@
-// CONTROLLER: Handles the Business Logic
-const { hqPool, centralPool, riftPool } = require('../config/db');
-const mpesa = require('../mpesa'); // We will move mpesa.js later, keep it in root for now
+const { hqPool, centralPool, riftPool, westernPool, coastPool, northPool } = require('../config/db');
+const url = require('url');
 
-exports.processTransaction = async (req, res) => {
-    let client;
+async function logEvent(eventType, description) {
+    try { await hqPool.query("INSERT INTO audit_logs (event_type, description) VALUES ($1, $2)", [eventType, description]); } 
+    catch (err) { console.error("Audit Log Failed:", err.message); }
+}
+
+function getTargetDB(townOrRegion) {
+    if (!townOrRegion) return null;
+    const t = townOrRegion.toUpperCase();
+    if (['MURANGA', 'NYERI', 'KIAMBU', 'CENTRAL'].includes(t)) return centralPool;
+    if (['NAIVASHA', 'NAKURU', 'NAROK', 'RIFT'].includes(t)) return riftPool;
+    if (['KISUMU', 'KAKAMEGA', 'BUNGOMA', 'WESTERN'].includes(t)) return westernPool;
+    if (['MOMBASA', 'KILIFI', 'LAMU', 'COAST'].includes(t)) return coastPool;
+    if (['GARISSA', 'TURKANA', 'ISIOLO', 'NORTH', 'NORTHERN'].includes(t)) return northPool;
+    return null;
+}
+
+async function fetchFromShard(pool, query, regionName, defaultDepot) {
     try {
-        const { town, total_amount, cart_data, cashier_id } = req.body;
+        const res = await pool.query(query);
+        return res.rows.map(row => ({ ...row, region: regionName, depot: defaultDepot }));
+    } catch (err) { return []; }
+}
 
-        console.log(`🌍 [Docker] Incoming Transaction from: ${town}`);
-
-        // 1. TOPOLOGICAL SHARDING (Using Docker Pools)
-        const regionMap = {
-            'MURANGA': centralPool, 
-            'NYERI': centralPool,
-            'KIAMBU': centralPool,
-            'MERU': centralPool,
-            'NAIVASHA': riftPool,
-            'NAKURU': riftPool,
-            'NAROK': riftPool
-        };
-
-        const targetDB = regionMap[town ? town.toUpperCase() : 'UNKNOWN'];
-        if (!targetDB) throw new Error(`❌ Routing Error: Town '${town}' unknown.`);
-
-        // 2. SECURITY GATEKEEPER (Check HQ Node)
-        // Note: We use hqPool here!
-        const authRes = await hqPool.query('SELECT role FROM system_users WHERE user_id = $1', [cashier_id]);
-        if (authRes.rows.length === 0) throw new Error("⛔ SECURITY ALERT: Unauthorized.");
-
-        // 3. COMMERCE (M-PESA)
-        // Use a test phone number for docker demo
-        const mpesaRes = await mpesa.triggerSTKPush("254700000000", total_amount, town);
-        if (mpesaRes.ResponseCode && mpesaRes.ResponseCode !== "0") {
-            throw new Error("Payment Failed: " + mpesaRes.errorMessage);
-        }
-        const mpesaRef = mpesaRes.CheckoutRequestID || ("DOCKER-MOCK-" + Date.now());
-
-        // 4. ACID TRANSACTION
-        client = await targetDB.connect();
-        await client.query('BEGIN');
-
-        // Inventory Check
-        const product_id = cart_data[0].product_id || (town.toUpperCase() === 'NAIVASHA' ? 300 : 200);
-        const qty = cart_data[0].qty;
-
-        const stockRes = await client.query('SELECT quantity_on_hand FROM inventory WHERE product_id = $1 FOR UPDATE', [product_id]);
-        if (stockRes.rows.length === 0) throw new Error(`Product ${product_id} not found.`);
-        if (stockRes.rows[0].quantity_on_hand < qty) throw new Error(`Insufficient Stock.`);
-
-        await client.query('UPDATE inventory SET quantity_on_hand = quantity_on_hand - $1 WHERE product_id = $2', [qty, product_id]);
-
-        const insertRes = await client.query(
-            `INSERT INTO transactions (cashier_id, total_amount, cart_data, mpesa_reference, payment_status, created_at)
-             VALUES ($1, $2, $3, $4, 'COMPLETED', NOW()) RETURNING txn_id`,
-            [cashier_id, total_amount, JSON.stringify(cart_data), mpesaRef]
-        );
-
-        await client.query('COMMIT');
-
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-            status: 'success', 
-            txn_id: insertRes.rows[0].txn_id,
-            payment_ref: mpesaRef
-        }));
-
+// 1. AUTHENTICATION
+exports.registerUser = async (req, res) => {
+    try {
+        const { username, password, role, phone, business_name, region } = req.body;
+        const check = await hqPool.query("SELECT * FROM system_users WHERE username = $1", [username]);
+        if(check.rows.length > 0) throw new Error("Username already taken");
+        await hqPool.query("INSERT INTO system_users (username, password_hash, role, phone, business_name, region_access) VALUES ($1, $2, $3, $4, $5, $6)", [username, password, role, phone, business_name, region || 'NONE']);
+        await logEvent('USER_REGISTER', `New ${role} registered: ${username}`);
+        res.writeHead(201, {'Content-Type': 'application/json'}); res.end(JSON.stringify({ status: 'success' }));
     } catch (err) {
-        if (client) await client.query('ROLLBACK');
-        console.error(`❌ Error: ${err.message}`);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'error', error: err.message }));
-    } finally {
-        if (client) client.release();
+        res.writeHead(400, {'Content-Type': 'application/json'}); res.end(JSON.stringify({ status: 'error', message: err.message }));
     }
 };
 
-exports.getAnalytics = async (req, res) => {
+exports.loginUser = async (req, res) => {
     try {
-        console.log("📊 [Docker] Generating National Report...");
-        const [resCentral, resRift] = await Promise.all([
-            centralPool.query('SELECT total_amount FROM transactions'),
-            riftPool.query('SELECT total_amount FROM transactions')
-        ]);
-
-        const totalCentral = resCentral.rows.reduce((sum, row) => sum + parseFloat(row.total_amount), 0);
-        const totalRift = resRift.rows.reduce((sum, row) => sum + parseFloat(row.total_amount), 0);
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            national_total: totalCentral + totalRift,
-            breakdown: {
-                central_region: { revenue: totalCentral },
-                rift_region: { revenue: totalRift }
-            }
-        }));
+        const { username, password } = req.body;
+        const result = await hqPool.query("SELECT * FROM system_users WHERE username = $1", [username]);
+        if (result.rows.length === 0 || result.rows[0].password_hash !== password) throw new Error("Invalid Credentials");
+        const user = result.rows[0];
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ status: 'success', user: { id: user.user_id, username: user.username, role: user.role, business_name: user.business_name, phone: user.phone, region_access: user.region_access } }));
     } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.writeHead(401, {'Content-Type': 'application/json'}); res.end(JSON.stringify({ status: 'error', message: err.message }));
+    }
+};
+
+// 2. WAREHOUSE & LOGISTICS OPERATIONS
+exports.getWarehouseInventory = async (req, res) => {
+    try {
+        const reqUrl = url.parse(req.url, true);
+        const { region_access } = reqUrl.query;
+        const query = "SELECT request_id, farmer_name, produce_type, quantity_kg, request_status, storage_bin, quality_status FROM warehouse_requests WHERE request_status IN ('APPROVED', 'SOLD') ORDER BY created_at DESC";
+        
+        let results = [];
+        if (region_access === 'ALL') {
+            const all = await Promise.all([
+                fetchFromShard(centralPool, query, 'CENTRAL', 'CENTRAL'), fetchFromShard(riftPool, query, 'RIFT', 'RIFT'),
+                fetchFromShard(westernPool, query, 'WESTERN', 'WESTERN'), fetchFromShard(coastPool, query, 'COAST', 'COAST'),
+                fetchFromShard(northPool, query, 'NORTHERN', 'NORTHERN')
+            ]);
+            results = all.flat();
+        } else {
+            const pool = getTargetDB(region_access);
+            if(pool) results = await fetchFromShard(pool, query, region_access, region_access);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(results));
+    } catch(err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message }));
+    }
+};
+
+exports.updateWarehouseBin = async (req, res) => {
+    try {
+        const { request_id, town, storage_bin, quality_status } = req.body;
+        const targetDB = getTargetDB(town);
+        if(!targetDB) throw new Error(`Gateway Error: Target Shard '${town}' is offline or invalid.`);
+        await targetDB.query("UPDATE warehouse_requests SET storage_bin = $1, quality_status = $2 WHERE request_id = $3", [storage_bin, quality_status, request_id]);
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'success' }));
+    } catch(err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: err.message }));
+    }
+};
+
+exports.getLogisticsData = async (req, res) => {
+    try {
+        const result = await hqPool.query("SELECT * FROM logistics_fleet ORDER BY dispatched_at DESC");
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result.rows));
+    } catch(err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+};
+
+// 3. E-COMMERCE & BUYER OPERATIONS
+exports.checkoutCart = async (req, res) => {
+    const { buyer_id, buyer_name, cart } = req.body;
+    let successCount = 0; let totalCartValue = 0;
+
+    try {
+        for (const item of cart) {
+            const targetDB = getTargetDB(item.depot);
+            if (targetDB) {
+                const client = await targetDB.connect();
+                try {
+                    await client.query('BEGIN');
+                    const check = await client.query("SELECT request_status FROM warehouse_requests WHERE request_id = $1 FOR UPDATE", [item.request_id]);
+                    if (check.rows.length > 0 && check.rows[0].request_status === 'APPROVED') {
+                        await client.query("UPDATE warehouse_requests SET request_status = 'SOLD' WHERE request_id = $1", [item.request_id]);
+                        await client.query("INSERT INTO sales_transactions (request_id, buyer_name, amount_paid) VALUES ($1, $2, $3)", [item.request_id, buyer_name, item.price]);
+                        await client.query('COMMIT');
+                        successCount++; totalCartValue += item.price;
+                    } else { await client.query('ROLLBACK'); }
+                } catch(e) { await client.query('ROLLBACK'); } 
+                finally { client.release(); }
+            }
+        }
+        
+        if (successCount > 0) {
+            const mockMpesa = "PK" + Math.floor(10000000 + Math.random() * 90000000) + "XYZ"; 
+            const saleRes = await hqPool.query(
+                "INSERT INTO sales_ledger (buyer_id, total_amount, items_json, mpesa_receipt, payment_status) VALUES ($1, $2, $3, $4, 'COMPLETED') RETURNING sale_id", 
+                [buyer_id, totalCartValue, JSON.stringify(cart), mockMpesa]
+            );
+            
+            const saleId = saleRes.rows[0].sale_id;
+            
+            const uniqueDepots = [...new Set(cart.map(i => i.depot))];
+            for(const depot of uniqueDepots) {
+                await hqPool.query(
+                    "INSERT INTO logistics_fleet (sale_id, driver_name, vehicle_plate, origin_depot, destination, status) VALUES ($1, $2, $3, $4, $5, 'PENDING_DISPATCH')",
+                    [saleId, 'Unassigned', 'TBD', depot, buyer_name]
+                );
+            }
+        }
+
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({ status: 'success', bought: successCount, total: totalCartValue }));
+    } catch (err) {
+        res.writeHead(500, {'Content-Type': 'application/json'}); res.end(JSON.stringify({ error: err.message }));
+    }
+};
+
+exports.getMarketplaceInventory = async (req, res) => {
+    try {
+        const query = "SELECT request_id, produce_type, quantity_kg, storage_fee, farmer_name FROM warehouse_requests WHERE request_status = 'APPROVED'";
+        const results = await Promise.all([
+            fetchFromShard(centralPool, query, "CENTRAL", "CENTRAL"), fetchFromShard(riftPool, query, "RIFT", "RIFT"),
+            fetchFromShard(westernPool, query, "WESTERN", "WESTERN"), fetchFromShard(coastPool, query, "COAST", "COAST"),
+            fetchFromShard(northPool, query, "NORTHERN", "NORTHERN")
+        ]);
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(results.flat()));
+    } catch(err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+};
+
+// NEW: Fetch Buyer History
+exports.getBuyerHistory = async (req, res) => {
+    try {
+        const { buyer_id } = req.body;
+        const result = await hqPool.query("SELECT sale_id, total_amount, sale_date, payment_status, items_json FROM sales_ledger WHERE buyer_id = $1 ORDER BY sale_date DESC", [buyer_id]);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify(result.rows));
+    } catch(err) {
+        res.writeHead(500, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({ error: err.message }));
     }
 };
 
-
-exports.requestWarehousing = async (req, res) => {
-    let client;
-    try {
-        console.log("🚜 [Docker] Incoming Warehouse Request...");
-        const { town, farmer_name, phone, produce, qty, storage_type } = req.body;
-
-        // 1. TOPOLOGICAL ROUTING (Same Sharding Logic)
-        const regionMap = {
-            'MURANGA': centralPool, 'NYERI': centralPool, 'KIAMBU': centralPool,
-            'NAIVASHA': riftPool, 'NAKURU': riftPool, 'NAROK': riftPool
-        };
-        const targetDB = regionMap[town ? town.toUpperCase() : 'UNKNOWN'];
-        if (!targetDB) throw new Error(`❌ Routing Error: Town '${town}' unknown.`);
-
-        // 2. CALCULATE STORAGE FEE (Business Logic)
-        // e.g., 10 KES per KG for storage
-        const storageFee = qty * 10; 
-
-        // 3. M-PESA PAYMENT (Storage Fee)
-        // Trigger STK Push to Farmer's Phone
-        const mpesaRes = await mpesa.triggerSTKPush(phone, storageFee, "StorageFee");
-        const mpesaRef = mpesaRes.CheckoutRequestID || ("STORE-" + Date.now());
-
-        // 4. SAVE TO DATABASE
-        client = await targetDB.connect();
-        const insertRes = await client.query(
-            `INSERT INTO warehouse_requests 
-            (farmer_name, farmer_phone, produce_type, quantity_kg, storage_type, storage_fee, mpesa_reference, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-            RETURNING request_id`,
-            [farmer_name, phone, produce, qty, storage_type, storageFee, mpesaRef]
-        );
-
-        res.writeHead(201, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ 
-            status: 'success', 
-            request_id: insertRes.rows[0].request_id,
-            fee_paid: storageFee,
-            message: `Warehouse Request Sent to ${town} Depot`
-        }));
-
-    } catch (err) {
-        console.error(`❌ Warehouse Error: ${err.message}`);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'error', error: err.message }));
-    } finally {
-        if (client) client.release();
-    }
-};
-
+// 4. ADMIN & FINANCE
 exports.getAdminWarehouseData = async (req, res) => {
     try {
-        console.log("👮 [Admin] Fetching Distributed Warehouse Data...");
-        
-        // Parallel Query: Ask BOTH Central and Rift shards for their data
+        const reqUrl = url.parse(req.url, true);
+        const { role, region_access } = reqUrl.query;
+        if (['DRIVER', 'TECH_STAFF', 'FINANCE_ADMIN'].includes(role)) throw new Error("403 Forbidden");
+
         const query = 'SELECT request_id, farmer_name, farmer_phone, produce_type, quantity_kg, storage_fee, request_status FROM warehouse_requests ORDER BY created_at DESC';
-        
-        const [resCentral, resRift] = await Promise.all([
-            centralPool.query(query),
-            riftPool.query(query)
-        ]);
+        let queries = [];
 
-        // Tag the data with its Origin Region (Since the DB doesn't always store it)
-        const centralData = resCentral.rows.map(row => ({ ...row, region: 'CENTRAL (Murang\'a)' }));
-        const riftData = resRift.rows.map(row => ({ ...row, region: 'RIFT (Naivasha)' }));
-
-        // Merge and Send
-        const allData = [...centralData, ...riftData];
-        
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(allData));
-
-    } catch (err) {
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-    }
+        if (role === 'HQ_ADMIN' || region_access === 'ALL') {
+            queries = [
+                fetchFromShard(centralPool, query, "CENTRAL", "CENTRAL"), fetchFromShard(riftPool, query, "RIFT", "RIFT"),
+                fetchFromShard(westernPool, query, "WESTERN", "WESTERN"), fetchFromShard(coastPool, query, "COAST", "COAST"),
+                fetchFromShard(northPool, query, "NORTHERN", "NORTHERN")
+            ];
+        } else {
+            const pool = getTargetDB(region_access);
+            if(pool) queries = [fetchFromShard(pool, query, region_access, region_access)];
+        }
+        const results = await Promise.all(queries);
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(results.flat()));
+    } catch(err) { res.writeHead(err.message.includes('403') ? 403 : 500); res.end(JSON.stringify({ error: err.message })); }
 };
+
 exports.updateWarehouseStatus = async (req, res) => {
-    let client;
     try {
-        const { request_id, town, status } = req.body;
-        console.log(`📝 [Admin] Updating Request ${request_id} to ${status}...`);
+        const { request_id, town, status, role } = req.body;
+        if (['DRIVER', 'TECH_STAFF', 'LOGISTICS_ADMIN', 'FINANCE_ADMIN'].includes(role)) throw new Error("403 Forbidden");
+        const targetDB = getTargetDB(town); 
+        await targetDB.query('UPDATE warehouse_requests SET request_status = $1 WHERE request_id = $2', [status, request_id]);
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ message: "Status Updated" }));
+    } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+};
 
-        // 1. Routing Logic (Again - to find the right shard)
-        const regionMap = {
-            'MURANGA': centralPool, 'NYERI': centralPool, 'KIAMBU': centralPool,
-            'NAIVASHA': riftPool, 'NAKURU': riftPool, 'NAROK': riftPool
-        };
-        // Simple logic to map back from Admin's "Town" hint
-        const targetDB = regionMap[town] || riftPool; 
+exports.getSystemLogs = async (req, res) => {
+    try {
+        const reqUrl = url.parse(req.url, true);
+        if (reqUrl.query.role !== 'HQ_ADMIN' && reqUrl.query.role !== 'TECH_STAFF') throw new Error("403 Forbidden");
+        const result = await hqPool.query("SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 50");
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result.rows));
+    } catch (err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+};
 
-        // 2. Connect and Update
-        client = await targetDB.connect();
-        await client.query(
-            'UPDATE warehouse_requests SET request_status = $1 WHERE request_id = $2',
-            [status, request_id]
-        );
+exports.getSystemHealth = async (req, res) => {
+    const checkShard = async (pool, name) => {
+        const start = Date.now();
+        try { await pool.query('SELECT 1'); return { name, status: 'ONLINE', latency: Date.now() - start }; } 
+        catch (err) { return { name, status: 'OFFLINE', latency: 0 }; }
+    };
+    const health = await Promise.all([
+        checkShard(hqPool, 'HQ Core'), checkShard(centralPool, 'Central Shard'),
+        checkShard(riftPool, 'Rift Shard'), checkShard(westernPool, 'Western Shard'),
+        checkShard(coastPool, 'Coast Shard'), checkShard(northPool, 'North Shard')
+    ]);
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(health));
+};
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ message: "✅ Status Updated Successfully" }));
+exports.getFinanceAnalytics = async (req, res) => {
+    try {
+        const result = await hqPool.query(`SELECT sl.sale_id, sl.total_amount, sl.sale_date, sl.mpesa_receipt, sl.payment_status, u.business_name as buyer_name FROM sales_ledger sl LEFT JOIN system_users u ON sl.buyer_id = u.user_id ORDER BY sl.sale_date DESC`);
+        res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(result.rows));
+    } catch(err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
+};
 
-    } catch (err) {
-        console.error(err);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: err.message }));
-    } finally {
-        if (client) client.release();
-    }
+exports.requestWarehousing = async (req, res) => {
+    try {
+        const { town, farmer_name, phone, produce, qty, storage_type } = req.body;
+        const targetDB = getTargetDB(town);
+        await targetDB.query(`INSERT INTO warehouse_requests (farmer_name, farmer_phone, produce_type, quantity_kg, storage_type, request_status, created_at) VALUES ($1, $2, $3, $4, $5, 'PENDING', NOW())`, [farmer_name, phone, produce, qty, storage_type]);
+        res.writeHead(201, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ status: 'success' }));
+    } catch (err) { res.writeHead(500); res.end(JSON.stringify({ status: 'error', error: err.message })); }
+};
+
+exports.getFarmerHistory = async (req, res) => {
+    try {
+        const { phone } = req.body;
+        const query = "SELECT produce_type, quantity_kg, request_status, created_at FROM warehouse_requests WHERE farmer_phone = $1 ORDER BY created_at DESC";
+        const fetchSafe = async (pool, depotName) => { try { const r = await pool.query(query, [phone]); return r.rows.map(row => ({...row, depot: depotName})); } catch(e) { return []; } };
+        const results = await Promise.all([ fetchSafe(centralPool, 'CENTRAL'), fetchSafe(riftPool, 'RIFT'), fetchSafe(westernPool, 'WESTERN'), fetchSafe(coastPool, 'COAST'), fetchSafe(northPool, 'NORTHERN') ]);
+        res.writeHead(200, {'Content-Type': 'application/json'}); res.end(JSON.stringify(results.flat()));
+    } catch(err) { res.writeHead(500); res.end(JSON.stringify({ error: err.message })); }
 };

@@ -3,135 +3,219 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KAPEM Network Admin</title>
+    <title>KAPEM | Command Center</title>
+    <link rel="stylesheet" href="global.css">
     <style>
-        :root { --bg: #1a1a2e; --card: #16213e; --text: #e94560; --highlight: #0f3460; }
-        body { background: var(--bg); color: white; font-family: 'Segoe UI', monospace; margin: 0; padding: 20px; }
+        .admin-wrapper { display: flex; flex: 1; align-items: stretch; width: 100%; }
+        .admin-sidebar { width: 260px; background: var(--card-bg); border-right: 1px solid var(--border-color); padding: 20px; display: flex; flex-direction: column; }
+        .nav-item { padding: 12px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 8px; color: #94a3b8; transition: 0.3s; display: flex; align-items: center; gap: 10px; font-weight: 500; }
+        .nav-item:hover, .nav-item.active { background: rgba(34, 197, 94, 0.1); color: var(--text-color); }
+        .nav-item.active { border-left: 3px solid var(--primary); color: var(--primary); }
+        .main-content { flex: 1; padding: 30px; display: flex; flex-direction: column; gap: 25px; overflow-y: auto; }
         
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .stat-card { background: var(--card-bg); padding: 25px; border-radius: 12px; border: 1px solid var(--border-color); }
+        .stat-val { font-size: 2rem; font-weight: bold; margin-top: 5px; color: var(--text-color); }
+        .stat-label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
+
+        .panel-box { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border-color); padding: 20px; }
+        .panel-title { font-size: 1rem; font-weight: 600; color: var(--text-color); margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; color: #94a3b8; font-size: 0.8rem; padding: 15px; border-bottom: 1px solid var(--border-color); text-transform: uppercase; }
+        td { padding: 15px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; color: var(--text-color); }
+        .btn-action { border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 5px; }
+        .btn-approve { background: rgba(34, 197, 94, 0.2); color: #166534; border: 1px solid #166534; }
+        .btn-reject { background: rgba(239, 68, 68, 0.2); color: #b91c1c; border: 1px solid #b91c1c; }
         
-        .card { background: var(--card); padding: 20px; border-radius: 10px; border: 1px solid #333; }
-        .card h2 { color: var(--text); border-bottom: 1px solid #444; padding-bottom: 10px; margin-top: 0; }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th { text-align: left; color: #888; border-bottom: 1px solid #555; padding: 5px; }
-        td { padding: 8px 5px; border-bottom: 1px solid #222; }
-        
-        .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-        .pending { background: #ff9800; color: black; }
-        .approved { background: #4caf50; color: white; }
-        
-        .refresh-btn { position: fixed; bottom: 20px; right: 20px; padding: 15px 30px; background: var(--text); color: white; border: none; border-radius: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .refresh-btn:hover { background: #c72c41; }
+        /* Topology Map Styles */
+        .topology-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; padding: 40px 0; }
+        .node-card { background: var(--bg-color); border: 2px solid var(--border-color); border-radius: 50%; width: 140px; height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .node-card.online { border-color: #22c55e; box-shadow: 0 0 20px rgba(34, 197, 94, 0.2); }
+        .node-card.offline { border-color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.2); }
+        .node-hq { transform: scale(1.2); border-width: 4px; margin: 0 40px; }
+        .log-console { background: #1e293b; font-family: monospace; padding: 20px; border-radius: 8px; height: 500px; overflow-y: auto; border: 1px solid #0f172a; font-size: 0.85rem; color: #a3be8c; }
     </style>
 </head>
 <body>
 
-    <h1>🔐 KAPEM Network Operations Center (NOC)</h1>
-
-    <div class="grid">
-        <div class="card" style="grid-column: span 2;">
-            <h2>🚜 Incoming Warehouse Requests (Real-Time)</h2>
-            <table id="warehouseTable">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Farmer</th>
-                        <th>Produce</th>
-                        <th>Qty (KG)</th>
-                        <th>Fee Paid</th>
-                        <th>Region</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody id="warehouseData">
-                    <tr><td colspan="7">Loading distributed data...</td></tr>
-                </tbody>
-            </table>
+    <div class="admin-wrapper">
+        <div class="admin-sidebar">
+            <h3 style="color:var(--primary); margin-top:0;">Ops Menu</h3>
+            <div class="nav-item active" onclick="switchView('dashboard')">📊 Live Dashboard</div>
+            <div class="nav-item" id="navApprovals" onclick="switchView('approvals')">✅ Stock Approvals</div>
+            <div class="nav-item" id="navMap" onclick="switchView('topology')">🌍 Network Topology</div>
+            <div class="nav-item" id="navLogs" onclick="switchView('logs')">💻 System Logs</div>
         </div>
 
-        <div class="card">
-            <h2>📡 Network Node Status</h2>
-            <div id="nodeStatus">
-                <p>Checking Docker Containers...</p>
+        <div class="main-content" id="dashboard">
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-val" id="totalKg">0</div></div>
+                <div class="stat-card"><div class="stat-label">Pending Action</div><div class="stat-val" style="color:#f59e0b" id="pendingCount">0</div></div>
+                <div class="stat-card"><div class="stat-label">Market Value</div><div class="stat-val" style="color:var(--primary)" id="marketVal">KES 0</div></div>
+            </div>
+            <div class="panel-box" style="flex:1;">
+                <div class="panel-title">Latest Shard Data <button onclick="fetchData()" style="background:var(--primary); color:white; border:none; padding:6px 12px; border-radius:4px; font-weight:bold; cursor:pointer;">Sync</button></div>
+                <table>
+                    <thead><tr><th>Region</th><th>Farmer</th><th>Produce</th><th>Status</th></tr></thead>
+                    <tbody id="dashTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="main-content" id="approvals" style="display:none">
+            <div class="panel-box" style="height:100%; overflow-y:auto;">
+                <div class="panel-title">Pending Authorizations</div>
+                <table>
+                    <thead><tr><th>Region</th><th>Farmer</th><th>Qty</th><th>Action</th></tr></thead>
+                    <tbody id="fullTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="main-content" id="topology" style="display:none">
+            <div class="panel-box" style="text-align:center;">
+                <div class="panel-title" style="justify-content:center;">Distributed Database Topology</div>
+                <p style="color:#64748b; margin-bottom:30px;">Live pinging PostgreSQL shards...</p>
+                <div class="topology-grid" id="mapGrid">Loading Cluster Map...</div>
+            </div>
+        </div>
+
+        <div class="main-content" id="logs" style="display:none">
+            <div class="panel-box">
+                <div class="panel-title">HQ Audit Stream</div>
+                <div class="log-console" id="logConsole">Connecting...</div>
             </div>
         </div>
     </div>
 
-    <button class="refresh-btn" onclick="fetchAdminData()">🔄 Sync Network</button>
-
+    <script src="layout.js"></script>
     <script>
-        async function fetchAdminData() {
-            // 1. Fetch Warehouse Data
-            try {
-                const res = await fetch('http://localhost:3000/api/admin/warehouse');
-                const data = await res.json();
-                
-                const tbody = document.getElementById('warehouseData');
-                // clear old data
-                tbody.innerHTML = ''; 
+        const user = JSON.parse(localStorage.getItem('kapem_user'));
+        if (!user || !['HQ_ADMIN', 'REGION_ADMIN', 'WAREHOUSE_ADMIN', 'LOGISTICS_ADMIN', 'TECH_STAFF'].includes(user.role)) window.location.href = 'login.html';
 
-                // Add Table Header for Actions if missing
-                const headerRow = document.querySelector('#warehouseTable thead tr');
-                if (!headerRow.innerHTML.includes('Actions')) {
-                    headerRow.innerHTML += '<th>Actions</th>';
-                }
-
-                data.forEach(req => {
-                    // Only show buttons if pending
-                    let actionButtons = '';
-                    if (req.request_status === 'PENDING') {
-                        actionButtons = `
-                            <button onclick="updateStatus('${req.request_id}', '${req.region}', 'APPROVED')" style="background:#4caf50; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius:4px;">✔</button>
-                            <button onclick="updateStatus('${req.request_id}', '${req.region}', 'REJECTED')" style="background:#f44336; color:white; border:none; padding:5px 10px; cursor:pointer; border-radius:4px;">✖</button>
-                        `;
-                    } else {
-                        actionButtons = `<small>${req.request_status}</small>`;
-                    }
-
-                    const row = `<tr>
-                        <td>${req.request_id.substring(0,8)}...</td>
-                        <td>${req.farmer_name} <br><small>${req.farmer_phone}</small></td>
-                        <td>${req.produce_type}</td>
-                        <td>${req.quantity_kg}</td>
-                        <td style="color:#4caf50">KES ${req.storage_fee}</td>
-                        <td>${req.region}</td>
-                        <td><span class="status-badge ${req.request_status.toLowerCase()}">${req.request_status}</span></td>
-                        <td>${actionButtons}</td>
-                    </tr>`;
-                    tbody.innerHTML += row;
-                });
-            } catch (err) {
-                console.error("Admin API Error:", err);
-            }
+        if (user.role !== 'HQ_ADMIN' && user.role !== 'TECH_STAFF') {
+            document.getElementById('navLogs').style.display = 'none'; 
+            document.getElementById('navMap').style.display = 'none'; 
+        }
+        if (user.role === 'TECH_STAFF' || user.role === 'LOGISTICS_ADMIN') {
+            document.getElementById('navApprovals').style.display = 'none'; 
         }
 
-        // NEW FUNCTION: Handle the Button Click
-        async function updateStatus(id, regionRaw, newStatus) {
-            // Determine the town based on the region string to route correctly
-            // (e.g., "RIFT (Naivasha)" -> "NAIVASHA")
-            let town = "NAIROBI"; 
-            if(regionRaw.includes("RIFT")) town = "NAIVASHA";
-            if(regionRaw.includes("CENTRAL")) town = "NYERI";
+        function switchView(id) {
+            document.querySelectorAll('.main-content').forEach(d => d.style.display = 'none');
+            document.querySelectorAll('.nav-item').forEach(d => d.classList.remove('active'));
+            document.getElementById(id).style.display = 'flex';
+            event.currentTarget.classList.add('active');
+            
+            if (id === 'logs') fetchLogs();
+            if (id === 'topology') fetchTopology();
+            if (id === 'dashboard' || id === 'approvals') fetchData();
+        }
 
-            if(!confirm(`Are you sure you want to mark this as ${newStatus}?`)) return;
+        async function fetchData() {
+            try {
+                const res = await fetch(`http://localhost:3000/api/admin/warehouse?role=${user.role}&region_access=${user.region_access}`);
+                const data = await res.json();
+                let totalKg = 0, pending = 0;
+                const dashBody = document.getElementById('dashTable');
+                const fullBody = document.getElementById('fullTable');
+                dashBody.innerHTML = ''; fullBody.innerHTML = '';
 
+                data.forEach((item, index) => {
+                    totalKg += parseFloat(item.quantity_kg);
+                    if(item.request_status === 'PENDING') pending++;
+                    const safeRegion = item.region.replace(/'/g, "\\'");
+                    const regionLabel = item.region.split(' ')[0];
+
+                    if (index < 8) {
+                        dashBody.innerHTML += `<tr>
+                            <td><span style="font-size:0.75rem; background:#e2e8f0; color:#334155; padding:3px 8px; border-radius:4px;">${regionLabel}</span></td>
+                            <td>${item.farmer_name}</td>
+                            <td>${item.produce_type} (${item.quantity_kg}kg)</td>
+                            <td style="color:${item.request_status === 'PENDING' ? '#f59e0b' : 'var(--primary)'}">${item.request_status}</td>
+                        </tr>`;
+                    }
+                    if(item.request_status === 'PENDING') {
+                        fullBody.innerHTML += `<tr>
+                            <td><span style="font-size:0.75rem; background:#e2e8f0; color:#334155; padding:3px 8px; border-radius:4px;">${regionLabel}</span></td>
+                            <td>${item.farmer_name}</td>
+                            <td>${item.produce_type} (${item.quantity_kg}kg)</td>
+                            <td>
+                                <button class="btn-action btn-approve" onclick="action('${item.request_id}', '${safeRegion}', 'APPROVED')">✔ Approve</button>
+                                <button class="btn-action btn-reject" onclick="action('${item.request_id}', '${safeRegion}', 'REJECTED')">✖ Reject</button>
+                            </td>
+                        </tr>`;
+                    }
+                });
+                if(fullBody.innerHTML === '') fullBody.innerHTML = '<tr><td colspan="4" style="text-align:center;">No pending authorizations.</td></tr>';
+                document.getElementById('totalKg').innerText = totalKg.toLocaleString();
+                document.getElementById('pendingCount').innerText = pending;
+                document.getElementById('marketVal').innerText = "KES " + (totalKg * 60).toLocaleString();
+            } catch(e) {}
+        }
+
+        async function action(id, region, status) {
+            let town = "NAIROBI";
+            if(region.includes("CENTRAL")) town = "NYERI";
+            if(region.includes("RIFT")) town = "NAIVASHA";
+            if(region.includes("WESTERN")) town = "KISUMU";
+            if(region.includes("COAST")) town = "MOMBASA";
+            if(region.includes("NORTH")) town = "GARISSA";
+            
             try {
                 const res = await fetch('http://localhost:3000/api/admin/update', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ request_id: id, town: town, status: newStatus })
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ request_id: id, town: town, status: status, role: user.role })
                 });
-                const result = await res.json();
-                alert(result.message);
-                fetchAdminData(); // Refresh table
+                
+                if (res.ok) {
+                    alert(`✅ Success: Action '${status}' applied successfully.`);
+                    fetchData(); // Refresh the table
+                } else {
+                    alert("❌ Error: Action failed to process.");
+                }
             } catch (err) {
-                alert("Error updating status");
+                alert("Network Error: Could not reach the Gateway.");
             }
         }
 
-        // Auto-load on start
-        fetchAdminData();
+        async function fetchTopology() {
+            try {
+                const res = await fetch('http://localhost:3000/api/health');
+                const data = await res.json();
+                const grid = document.getElementById('mapGrid');
+                grid.innerHTML = '';
+                
+                data.forEach(node => {
+                    const isHQ = node.name.includes("HQ");
+                    const statusClass = node.status === 'ONLINE' ? 'online' : 'offline';
+                    grid.innerHTML += `
+                        <div class="node-card ${statusClass} ${isHQ ? 'node-hq' : ''}">
+                            <div style="font-size:24px; margin-bottom:5px;">${isHQ ? '🏛️' : '🗄️'}</div>
+                            <strong style="color:var(--text-color); font-size:0.9rem;">${node.name}</strong>
+                            <small style="color:#64748b; margin-top:5px;">${node.latency}ms</small>
+                        </div>
+                    `;
+                });
+            } catch(e) { document.getElementById('mapGrid').innerHTML = "Topology ping failed."; }
+        }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch('http://localhost:3000/api/logs?role=' + user.role);
+                const logs = await res.json();
+                const box = document.getElementById('logConsole');
+                box.innerHTML = '';
+                logs.forEach(l => {
+                    box.innerHTML += `<div style="margin-bottom:8px; border-bottom:1px dashed #333; padding-bottom:5px;">
+                        <span style="color:#64748b">[${new Date(l.created_at).toLocaleTimeString()}]</span> 
+                        <span style="color:var(--primary)">[${l.event_type}]</span>: <span style="color:#e2e8f0">${l.description}</span>
+                    </div>`;
+                });
+            } catch(e) {}
+        }
+        fetchData();
     </script>
 </body>
 </html>

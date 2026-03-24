@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAPEM | Register</title>
+    <style>
+        body { margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center; background: #f8fafc; font-family: 'Segoe UI', sans-serif; color: #334155; }
+        .auth-card { background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 350px; border-top: 5px solid #166534; }
+        h2 { margin: 0 0 25px; text-align: center; color: #166534; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.85rem; font-weight: bold; margin-bottom: 5px; color: #64748b; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
+        input:focus, select:focus { outline: none; border-color: #166534; }
+        button { width: 100%; padding: 12px; background: #166534; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px; }
+        button:hover { background: #14532d; }
+        .link { display: block; text-align: center; margin-top: 20px; font-size: 0.9rem; color: #166534; text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <h2>Create Account</h2>
+        <form id="regForm">
+            <div class="form-group">
+                <label>Account Type</label>
+                <select id="role">
+                    <option value="WHOLESALE_BUYER">Wholesale Buyer</option>
+                    <option value="RETAIL_BUYER">Retail Buyer</option>
+                    <option value="FARMER">Farmer</option>
+                    <option value="PARTNER">Logistics Partner</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" id="username" required>
+            </div>
+
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" id="password" required>
+            </div>
+
+            <div class="form-group">
+                <label>Phone Number (Serves as your ID)</label>
+                <input type="tel" id="phone" placeholder="2547..." required>
+            </div>
+            
+            <div class="form-group" id="bizGroup">
+                <label>Business / Farm Name</label>
+                <input type="text" id="bizName" required>
+            </div>
+            
+            <button type="submit" id="btn">Register</button>
+            <a href="login.html" class="link">Already have an account? Login</a>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('regForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn');
+            btn.innerHTML = "Creating..."; btn.disabled = true;
+
+            const payload = {
+                role: document.getElementById('role').value,
+                username: document.getElementById('username').value,
+                password: document.getElementById('password').value,
+                phone: document.getElementById('phone').value,
+                business_name: document.getElementById('bizName').value
+            };
+
+            try {
+                const res = await fetch('http://localhost:3000/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(payload)
+                });
+                if(res.ok) {
+                    alert("Account Created! You can now log in.");
+                    window.location.href = 'login.html';
+                } else { throw new Error(await res.text()); }
+            } catch(err) {
+                alert("Database Error: Username may be taken.");
+                btn.innerHTML = "Register"; btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -3,96 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Helix Distributed Ledger</title>
+    <title>KAPEM | Central Hub</title>
+    <link rel="stylesheet" href="global.css">
     <style>
-        /* DASHBOARD STYLING (HCI: Clean, Status-Oriented Design) */
-        :root { --bg: #1a1a2e; --card: #16213e; --accent: #0f3460; --text: #e94560; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: white; display: flex; gap: 20px; padding: 20px; }
+        .container { max-width: 1000px; margin: 40px auto; padding: 0 20px; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+        .hero { text-align: center; padding: 60px 20px; background: linear-gradient(135deg, var(--card-bg), rgba(22, 101, 52, 0.05)); border-radius: 20px; border: 1px solid var(--border-color); margin-bottom: 40px; box-shadow: 0 10px 30px rgba(0,0,0,0.02); }
+        .hero h1 { color: var(--primary); font-size: 2.5rem; margin-bottom: 10px; }
         
-        /* The Control Panel */
-        #controls { width: 30%; background: var(--card); padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        input, select, button { width: 100%; padding: 10px; margin: 10px 0; background: var(--accent); border: none; color: white; border-radius: 5px; }
-        button { background: var(--text); font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { transform: scale(1.02); }
-
-        /* The Network Graph Visualization */
-        #network-graph { width: 70%; display: flex; justify-content: space-around; align-items: center; position: relative; }
-        
-        .node { 
-            width: 120px; height: 120px; 
-            border-radius: 50%; 
-            background: #2a2a2a; border: 2px solid #555;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            transition: all 0.3s ease;
-        }
-        .node.active { border-color: #00ff00; box-shadow: 0 0 20px #00ff00; }
-        .node h3 { margin: 0; font-size: 1.2rem; }
-        .node small { color: #aaa; }
-
-        /* Logs Console */
-        #logs { position: fixed; bottom: 0; left: 0; width: 100%; height: 150px; background: black; overflow-y: scroll; font-family: monospace; padding: 10px; border-top: 2px solid var(--text); }
-        .log-entry { margin: 2px 0; border-bottom: 1px solid #333; }
-        .log-success { color: #00ff00; }
-        .log-error { color: #ff0000; }
+        .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; width: 100%; }
+        .action-card { background: var(--card-bg); padding: 30px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; cursor: pointer; transition: 0.3s; text-decoration: none; color: inherit; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .action-card:hover { border-color: var(--primary); transform: translateY(-8px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); }
+        .action-card h3 { color: var(--primary); font-size: 1.4rem; margin-top: 0; }
     </style>
 </head>
 <body>
 
-    <div id="controls">
-        <h2>Helix Terminal</h2>
-        <div class="input-group">
-            <label>Origin Branch (Town)</label>
-            <select id="regionInput">
-                <optgroup label="Central Region (HQ: Murang'a)">
-                    <option value="MURANGA">Murang'a Town</option>
-                    <option value="NYERI">Nyeri</option>
-                    <option value="KIAMBU">Kiambu</option>
-                </optgroup>
-                <optgroup label="Rift Region (HQ: Naivasha)">
-                    <option value="NAIVASHA">Naivasha</option>
-                    <option value="NAKURU">Nakuru</option>
-                    <option value="NAROK">Narok</option>
-                </optgroup>
-            </select>
+    <div class="container animate-up">
+        <div class="hero" id="welcomeHero">
+            <h1>Kenya Agricultural Produce Exchange Market</h1>
+            <p>Connecting farmers to national markets via secure, distributed ledger technology.</p>
         </div>
-        <div class="input-group">
-            <label>Total Amount (KES)</label>
-            <input type="number" id="amountInput" placeholder="5000.00">
-        </div>
-        <div class="input-group">
-            <label>Cart Data (JSON)</label>
-            <textarea id="cartInput" rows="4" style="width:100%; background:var(--accent); color:white; border:none;">[{"item": "Fertilizer", "qty": 5}]</textarea>
-        </div>
-        <button onclick="app.submitTransaction()">Submit Transaction</button>
+        
+        <div class="action-grid" id="actionGrid"></div>
     </div>
 
-    <div id="network-graph">
-        <div id="node-central" class="node"><h3>HQ Node</h3><small>Port 5432</small></div>
-        <div id="node-north" class="node"><h3>North</h3><small>Shard A</small></div>
-        <div id="node-south" class="node"><h3>South</h3><small>Shard B</small></div>
-    </div>
+    <script src="layout.js"></script>
+    <script>
+        const currentUser = JSON.parse(localStorage.getItem('kapem_user'));
+        const hero = document.getElementById('welcomeHero');
+        const grid = document.getElementById('actionGrid');
 
-    <div id="analytics-panel" style="background: var(--card); margin: 20px 0; padding: 20px; border-radius: 10px;">
-        <h2>🇰🇪 National Supply Chain Analytics</h2>
-        <div style="display: flex; gap: 20px; text-align: center;">
-            <div style="flex: 1; background: #2a2a2a; padding: 15px; border-radius: 8px;">
-                <h3 style="color: #aaa;">North Revenue</h3>
-                <h1 id="stat-north" style="color: #00ff00;">KES 0</h1>
-            </div>
-            <div style="flex: 1; background: #2a2a2a; padding: 15px; border-radius: 8px;">
-                <h3 style="color: #aaa;">South Revenue</h3>
-                <h1 id="stat-south" style="color: #ff0000;">KES 0</h1>
-            </div>
-            <div style="flex: 1; background: #2a2a2a; padding: 15px; border-radius: 8px; border: 1px solid var(--text);">
-                <h3 style="color: #fff;">Grand Total</h3>
-                <h1 id="stat-total">KES 0</h1>
-            </div>
-        </div>
-        <button onclick="app.fetchAnalytics()" style="margin-top: 15px; width: auto;">🔄 Refresh Analytics</button>
-    </div>
-
-    <div id="logs"></div>
-
-    <script src="app.js"></script>
+        if (!currentUser) {
+            grid.innerHTML = `
+                <a href="login.html" class="action-card"><h3>Sign In</h3><p>Access your personalized portal.</p></a>
+                <a href="register.html" class="action-card"><h3>Register</h3><p>Join the national agricultural network.</p></a>
+                <a href="marketplace.html" class="action-card"><h3>Live Market</h3><p>View currently available inventory.</p></a>
+            `;
+        } else {
+            hero.innerHTML = `
+                <h1>Welcome back, ${currentUser.business_name || currentUser.username}!</h1>
+                <p>Role: <strong>${currentUser.role.replace('_', ' ')}</strong> | Network Clearance: <strong>${currentUser.region_access || 'Standard'}</strong></p>
+            `;
+            
+            const role = currentUser.role;
+            let gridHTML = "";
+            
+            if (['HQ_ADMIN', 'REGION_ADMIN', 'TECH_STAFF'].includes(role)) gridHTML += `<a href="admin.html" class="action-card"><h3>⚡ Command Center</h3><p>Manage system approvals and overall health.</p></a>`;
+            if (['HQ_ADMIN', 'WAREHOUSE_ADMIN', 'REGION_ADMIN'].includes(role)) gridHTML += `<a href="warehouse_dashboard.html" class="action-card"><h3>📦 Warehouse Ops</h3><p>Manage physical bins and storage quality.</p></a>`;
+            if (['HQ_ADMIN', 'LOGISTICS_ADMIN', 'DRIVER'].includes(role)) gridHTML += `<a href="logistics_dashboard.html" class="action-card"><h3>🚚 Fleet Dispatch</h3><p>Track delivery routes and driver assignments.</p></a>`;
+            if (['WHOLESALE_BUYER', 'RETAIL_BUYER'].includes(role)) gridHTML += `<a href="marketplace.html" class="action-card"><h3>🛒 Marketplace</h3><p>Source bulk produce and view your cart.</p></a>`;
+            if (role === 'FARMER') gridHTML += `<a href="farmer_dashboard.html" class="action-card"><h3>🌾 My Farm</h3><p>Submit harvest data and track logistics.</p></a>`;
+            if (['HQ_ADMIN', 'FINANCE_ADMIN'].includes(role)) gridHTML += `<a href="finance_dashboard.html" class="action-card"><h3>💰 Financials</h3><p>Monitor system revenue and M-Pesa transactions.</p></a>`;
+            
+            grid.innerHTML = gridHTML;
+        }
+    </script>
 </body>
 </html>

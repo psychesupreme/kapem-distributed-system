@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>KAPEM System Logs</title>
+    <style>
+        body { background-color: #0d0d0d; color: #00ff00; font-family: 'Courier New', monospace; padding: 20px; }
+        h1 { border-bottom: 2px solid #00ff00; padding-bottom: 10px; }
+        .log-container { 
+            background: #1a1a1a; 
+            padding: 20px; 
+            border: 1px solid #333; 
+            height: 80vh; 
+            overflow-y: scroll; 
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+        }
+        .log-entry { margin-bottom: 8px; border-bottom: 1px dashed #333; padding-bottom: 5px; }
+        .timestamp { color: #888; margin-right: 15px; }
+        .type { font-weight: bold; margin-right: 15px; }
+        
+        .ADMIN_ACTION { color: #00ffff; } /* Cyan */
+        .WAREHOUSE_REQUEST { color: #ffff00; } /* Yellow */
+        .MARKET_SALE { color: #ff00ff; } /* Magenta */
+        .ERROR { color: #ff0000; } /* Red */
+    </style>
+</head>
+<body>
+    <h1>> KAPEM_CENTRAL_MAINFRAME // SYSTEM_LOGS</h1>
+    <div class="log-container" id="logBox">
+        <div>Initializing Secure Connection to HQ Node...</div>
+    </div>
+
+    <script>
+        async function fetchLogs() {
+            try {
+                const res = await fetch('http://localhost:3000/api/logs');
+                const logs = await res.json();
+                
+                const box = document.getElementById('logBox');
+                box.innerHTML = ''; // Clear
+
+                logs.forEach(log => {
+                    const time = new Date(log.created_at).toLocaleTimeString();
+                    // Color coding based on event type
+                    let colorClass = '';
+                    if (log.event_type.includes('ADMIN')) colorClass = 'ADMIN_ACTION';
+                    if (log.event_type.includes('WAREHOUSE')) colorClass = 'WAREHOUSE_REQUEST';
+                    if (log.event_type.includes('MARKET')) colorClass = 'MARKET_SALE';
+                    if (log.event_type.includes('ERROR')) colorClass = 'ERROR';
+
+                    const html = `
+                        <div class="log-entry">
+                            <span class="timestamp">[${time}]</span>
+                            <span class="type ${colorClass}">${log.event_type}</span>
+                            <span class="msg">${log.description}</span>
+                        </div>
+                    `;
+                    box.innerHTML += html;
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Auto-refresh every 2 seconds (Real-time feel)
+        setInterval(fetchLogs, 2000);
+        fetchLogs();
+    </script>
+</body>
+</html>

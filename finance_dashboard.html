@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAPEM | Financial Analytics</title>
+    <link rel="stylesheet" href="global.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; flex: 1; width: 100%; box-sizing: border-box; }
+        .card { background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color); margin-bottom: 25px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .stat-card { background: var(--card-bg); padding: 25px; border-radius: 12px; border: 1px solid var(--border-color); text-align: center; }
+        .stat-val { font-size: 2.2rem; font-weight: bold; margin-top: 5px; color: var(--primary); }
+        .stat-label { font-size: 0.9rem; color: #64748b; text-transform: uppercase; letter-spacing: 1px; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid var(--border-color); color: #64748b; font-size: 0.85rem; text-transform: uppercase; }
+        td { padding: 15px 12px; border-bottom: 1px solid var(--border-color); color: var(--text-color); font-size: 0.95rem; }
+        
+        .badge-success { background: rgba(34, 197, 94, 0.1); color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; border: 1px solid #166534; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2 style="color:var(--primary); margin-top:0;">💰 National Revenue & M-Pesa Ledger</h2>
+
+        <div class="stats-grid">
+            <div class="stat-card"><div class="stat-label">Total Revenue (KES)</div><div class="stat-val" id="totalRev">0</div></div>
+            <div class="stat-card"><div class="stat-label">Transactions</div><div class="stat-val" style="color:#0ea5e9" id="txCount">0</div></div>
+            <div class="stat-card"><div class="stat-label">System Health</div><div class="stat-val" style="color:#22c55e">ONLINE</div></div>
+        </div>
+
+        <div class="card" style="height: 300px; display: flex; justify-content: center;">
+            <canvas id="revenueChart"></canvas>
+        </div>
+
+        <div class="card" style="overflow-x:auto;">
+            <h3 style="margin-top:0; color:var(--text-color);">Recent Checkout Ledger</h3>
+            <table>
+                <thead>
+                    <tr><th>Date</th><th>Invoice ID</th><th>Buyer Business</th><th>Amount (KES)</th><th>M-Pesa Receipt</th><th>Status</th></tr>
+                </thead>
+                <tbody id="ledgerBody">
+                    <tr><td colspan="6" style="text-align:center;">Loading Financial Data...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="layout.js"></script>
+    <script>
+        const user = JSON.parse(localStorage.getItem('kapem_user'));
+        if (!user || !['HQ_ADMIN', 'FINANCE_ADMIN'].includes(user.role)) {
+            alert("Security Violation: Finance clearance required.");
+            window.location.href = 'login.html';
+        }
+
+        async function loadFinance() {
+            try {
+                const res = await fetch(`http://localhost:3000/api/finance/analytics?role=${user.role}`);
+                const data = await res.json();
+                
+                let totalRev = 0;
+                const tbody = document.getElementById('ledgerBody');
+                tbody.innerHTML = '';
+                
+                if(data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">No financial transactions recorded yet.</td></tr>';
+                    return;
+                }
+
+                // Prepare Data for Chart
+                const chartLabels = [];
+                const chartData = [];
+
+                data.forEach((tx, idx) => {
+                    totalRev += parseFloat(tx.total_amount);
+                    const shortId = tx.sale_id.split('-')[0].toUpperCase();
+                    const dateObj = new Date(tx.sale_date);
+                    const dateStr = dateObj.toLocaleDateString();
+
+                    // Accumulate Chart Data (Group by latest transactions)
+                    if (idx < 7) { chartLabels.unshift(shortId); chartData.unshift(tx.total_amount); }
+
+                    tbody.innerHTML += `
+                        <tr>
+                            <td>${dateStr} ${dateObj.toLocaleTimeString()}</td>
+                            <td><span style="font-family:monospace; color:#64748b;">INV-${shortId}</span></td>
+                            <td><strong>${tx.buyer_name || 'Unknown Buyer'}</strong></td>
+                            <td style="color:var(--primary); font-weight:bold;">${parseFloat(tx.total_amount).toLocaleString()}</td>
+                            <td><span style="font-family:monospace; font-weight:bold;">${tx.mpesa_receipt || 'MANUAL_ENTRY'}</span></td>
+                            <td><span class="badge-success">${tx.payment_status}</span></td>
+                        </tr>`;
+                });
+
+                document.getElementById('totalRev').innerText = totalRev.toLocaleString();
+                document.getElementById('txCount').innerText = data.length;
+
+                // Render Chart
+                new Chart(document.getElementById('revenueChart'), {
+                    type: 'line',
+                    data: {
+                        labels: chartLabels,
+                        datasets: [{ label: 'Transaction Value (KES)', data: chartData, borderColor: '#166534', backgroundColor: 'rgba(22, 101, 52, 0.1)', fill: true, tension: 0.4 }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+
+            } catch(e) { document.getElementById('ledgerBody').innerHTML = `<tr><td colspan="6" style="color:red">API Error: ${e.message}</td></tr>`; }
+        }
+
+        loadFinance();
+    </script>
+</body>
+</html>

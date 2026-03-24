@@ -1,58 +1,110 @@
-version: '3.8'
-
 services:
-  # 1. THE HQ DATABASE (Nairobi)
-  kapem-hq:
+  # 1. THE BRAIN (HQ)
+  kapem_hq:
     image: postgres:16-alpine
     container_name: kapem_hq
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: securepass123
+      POSTGRES_PASSWORD: admin_secret
       POSTGRES_DB: kapem_hq
-    ports:
-      - "5432:5432" # Maps localhost:5432 -> Container:5432
     volumes:
       - ./sql/hq_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - kapem_net
 
-  # 2. THE CENTRAL REGION DATABASE (Murang'a)
-  kapem-central:
+  # 2. CENTRAL SHARD (Murang'a/Nyeri)
+  kapem_central:
     image: postgres:16-alpine
     container_name: kapem_central
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: securepass123
+      POSTGRES_PASSWORD: admin_secret
       POSTGRES_DB: kapem_central
-    ports:
-      - "5433:5432" # Notice the port shift! 5433 -> 5432
     volumes:
       - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5433:5432"
+    networks:
+      - kapem_net
 
-  # 3. THE RIFT REGION DATABASE (Naivasha)
-  kapem-rift:
+  # 3. RIFT SHARD (Naivasha/Nakuru)
+  kapem_rift:
     image: postgres:16-alpine
     container_name: kapem_rift
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: securepass123
+      POSTGRES_PASSWORD: admin_secret
       POSTGRES_DB: kapem_rift
-    ports:
-      - "5434:5432" # Shift again! 5434 -> 5432
     volumes:
       - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5434:5432"
+    networks:
+      - kapem_net
 
-  # 4. THE MIDDLEWARE API (Node.js)
-  kapem-api:
+  # 4. WESTERN SHARD (Kisumu/Kakamega) - NEW!
+  kapem_western:
+    image: postgres:16-alpine
+    container_name: kapem_western
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin_secret
+      POSTGRES_DB: kapem_western
+    volumes:
+      - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5435:5432"
+    networks:
+      - kapem_net
+
+  # 5. COASTAL SHARD (Mombasa/Kilifi) - NEW!
+  kapem_coast:
+    image: postgres:16-alpine
+    container_name: kapem_coast
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin_secret
+      POSTGRES_DB: kapem_coast
+    volumes:
+      - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5436:5432"
+    networks:
+      - kapem_net
+
+  # 6. NORTHERN SHARD (Garissa/Turkana) - NEW!
+  kapem_north:
+    image: postgres:16-alpine
+    container_name: kapem_north
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin_secret
+      POSTGRES_DB: kapem_north
+    volumes:
+      - ./sql/shard_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5437:5432"
+    networks:
+      - kapem_net
+
+  # 7. THE API GATEWAY
+  kapem_api:
     build: .
     container_name: kapem_api
     ports:
       - "3000:3000"
-    environment:
-      - DB_HOST_HQ=kapem-hq
-      - DB_HOST_CENTRAL=kapem-central
-      - DB_HOST_RIFT=kapem-rift
-      - DB_USER=admin
-      - DB_PASS=securepass123
     depends_on:
-      - kapem-hq
-      - kapem-central
-      - kapem-rift
+      - kapem_hq
+      - kapem_central
+      - kapem_rift
+      - kapem_western
+      - kapem_coast
+      - kapem_north
+    networks:
+      - kapem_net
+
+networks:
+  kapem_net:
+    driver: bridge

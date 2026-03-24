@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAPEM | Wholesale Market</title>
+    <link rel="stylesheet" href="global.css">
+    <style>
+        .hero { background: linear-gradient(135deg, #14532d, #166534); color: white; padding: 60px 20px; text-align: center; margin-bottom: 40px; }
+        .hero h1 { margin: 0; font-size: 2.5rem; }
+
+        .container { max-width: 1200px; margin: 0 auto; padding: 0 20px 60px; flex: 1; width: 100%; box-sizing: border-box; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px; }
+
+        .card { background: var(--card-bg); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: all 0.3s ease; border: 1px solid var(--border-color); position: relative; }
+        .card:hover { transform: translateY(-8px); box-shadow: 0 20px 30px rgba(0,0,0,0.08); border-color: var(--primary); }
+        .card-header { height: 140px; background: rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: center; font-size: 4rem; position: relative; }
+        .region-badge { position: absolute; top: 10px; right: 10px; background: var(--primary); padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; color: white; }
+        .card-body { padding: 20px; }
+        .product-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 5px; display: flex; justify-content: space-between; }
+        .price-row { display: flex; justify-content: space-between; align-items: flex-end; margin: 20px 0; }
+        .price-val { font-size: 1.5rem; font-weight: 800; color: var(--primary); }
+
+        .btn-add { width: 100%; padding: 12px; background: transparent; color: var(--primary); border: 2px solid var(--primary); border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-add:hover { background: var(--primary); color: white; }
+
+        /* Floating Action Buttons */
+        .cart-btn { position: fixed; bottom: 30px; right: 30px; background: #f59e0b; color: black; padding: 15px 25px; border-radius: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 10px 25px rgba(245, 158, 11, 0.4); z-index: 900; transition: transform 0.2s; border: none; font-size: 1rem; }
+        .cart-btn:hover { transform: scale(1.05); }
+        
+        .orders-btn { position: fixed; bottom: 30px; right: 170px; background: var(--primary); color: white; padding: 15px 25px; border-radius: 50px; cursor: pointer; font-weight: bold; box-shadow: 0 10px 25px rgba(22, 101, 52, 0.4); z-index: 900; transition: transform 0.2s; border: none; font-size: 1rem; }
+        .orders-btn:hover { transform: scale(1.05); }
+
+        .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(5px); }
+        .modal-content { background: var(--card-bg); padding: 30px; border-radius: 16px; width: 100%; max-width: 450px; border: 1px solid var(--border-color); }
+        .cart-item { display: flex; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid var(--border-color); }
+        .btn-checkout { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 1.1rem; cursor: pointer; margin-top: 20px; }
+        .btn-checkout:disabled { background: #cbd5e1; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div class="hero animate-up">
+        <h1>Wholesale Marketplace</h1>
+        <p>Source bulk produce directly from our 5 regional depots.</p>
+    </div>
+
+    <div class="container animate-up">
+        <div id="loading" style="text-align:center; color:#64748b; padding:40px;">Loading Live Inventory...</div>
+        <div id="productGrid" class="grid"></div>
+    </div>
+
+    <button class="orders-btn" onclick="toggleOrders()">📦 My Orders</button>
+    <button class="cart-btn" onclick="toggleCart()">🛒 Cart (<span id="cartCount">0</span>)</button>
+
+    <div id="cartModal" class="modal">
+        <div class="modal-content">
+            <h2 style="margin-top:0; color:var(--primary); border-bottom:2px solid var(--border-color); padding-bottom:10px;">Your Basket</h2>
+            <div id="cartItems" style="max-height:300px; overflow-y:auto; margin-bottom:20px;"></div>
+            <div style="font-weight:900; font-size:1.4rem; text-align:right; margin-bottom:10px; color:var(--text-color);">
+                Total: KES <span id="cartTotal">0</span>
+            </div>
+            <button id="checkoutBtn" class="btn-checkout" onclick="checkout()">Confirm & Pay</button>
+            <button style="width:100%; padding:10px; background:transparent; border:none; color:#64748b; cursor:pointer; margin-top:10px; font-weight:bold;" onclick="toggleCart()">Close</button>
+        </div>
+    </div>
+
+    <div id="ordersModal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <h2 style="margin-top:0; color:var(--primary); border-bottom:2px solid var(--border-color); padding-bottom:10px;">My Order History</h2>
+            <div id="ordersList" style="max-height:400px; overflow-y:auto; margin-bottom:20px;"></div>
+            <button style="width:100%; padding:10px; background:var(--primary); border:none; color:white; border-radius:8px; cursor:pointer; font-weight:bold;" onclick="toggleOrders()">Close</button>
+        </div>
+    </div>
+
+    <script src="layout.js"></script>
+    <script>
+        const user = JSON.parse(localStorage.getItem('kapem_user'));
+        const userRole = user ? user.role.toUpperCase() : '';
+
+        if (!user || (userRole !== 'WHOLESALE_BUYER' && userRole !== 'RETAIL_BUYER' && userRole !== 'HQ_ADMIN')) {
+            alert("⚠️ Restricted Access: Please log in as a registered Buyer.");
+            window.location.href = 'login.html';
+        }
+
+        let cart = JSON.parse(localStorage.getItem('kapem_cart') || '[]');
+        const icons = { 'Avocado': '🥑', 'Maize': '🌽', 'Coffee': '☕', 'Tea': '🍃', 'Flowers': '💐', 'Coconut': '🥥', 'Fish': '🐟', 'Meat': '🥩', 'Sugar': '🍬' };
+
+        // MARKETPLACE LOGIC
+        async function loadMarket() {
+            try {
+                const res = await fetch('http://localhost:3000/api/marketplace');
+                const products = await res.json();
+                document.getElementById('loading').style.display = 'none';
+                const grid = document.getElementById('productGrid');
+                grid.innerHTML = '';
+
+                if(products.length === 0) {
+                    grid.innerHTML = '<div style="grid-column: 1 / -1; text-align: center; color: #94a3b8; padding: 40px;">No approved inventory available.</div>';
+                }
+
+                products.forEach((p) => {
+                    if(cart.find(c => c.request_id === p.request_id)) return;
+                    const price = p.quantity_kg * (p.produce_type === 'Avocado' ? 80 : 50);
+                    const icon = icons[p.produce_type] || '📦';
+                    
+                    grid.innerHTML += `
+                        <div class="card">
+                            <div class="card-header">${icon} <div class="region-badge">📍 ${p.depot}</div></div>
+                            <div class="card-body">
+                                <div class="product-title"><span>${p.produce_type}</span> <span style="color:#64748b; font-weight:normal">${p.quantity_kg}kg</span></div>
+                                <span style="font-size:0.85rem; color:#64748b;">Seller: ${p.farmer_name}</span>
+                                <div class="price-row"><span style="font-size:0.8rem; color:#94a3b8;">TOTAL COST</span> <span class="price-val">KES ${price.toLocaleString()}</span></div>
+                                <button class="btn-add" onclick="addToCart('${p.request_id}', '${p.depot}', '${p.produce_type}', ${p.quantity_kg}, ${price})">+ Add to Cart</button>
+                            </div>
+                        </div>`;
+                });
+            } catch (err) { document.getElementById('loading').innerHTML = "Market Offline."; }
+            updateCartUI();
+        }
+
+        function addToCart(id, depot, type, qty, price) {
+            cart.push({ request_id: id, depot, type, qty, price });
+            localStorage.setItem('kapem_cart', JSON.stringify(cart));
+            loadMarket();
+        }
+
+        function updateCartUI() { document.getElementById('cartCount').innerText = cart.length; }
+
+        function toggleCart() {
+            const modal = document.getElementById('cartModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+            renderCart();
+        }
+
+        function renderCart() {
+            const list = document.getElementById('cartItems');
+            let total = 0; list.innerHTML = '';
+            if(cart.length === 0) list.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:20px;">Cart is empty</div>';
+
+            cart.forEach((item, idx) => {
+                total += item.price;
+                list.innerHTML += `
+                    <div class="cart-item">
+                        <div style="color:var(--text-color)"><strong>${item.type}</strong> (${item.qty}kg) <br><small style="color:#64748b">📍 ${item.depot}</small></div>
+                        <div style="text-align:right">
+                            <strong style="color:var(--primary)">KES ${item.price.toLocaleString()}</strong>
+                            <br><span style="color:#ef4444; font-size:0.8rem; cursor:pointer; font-weight:bold;" onclick="removeItem(${idx})">Remove</span>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('cartTotal').innerText = total.toLocaleString();
+        }
+
+        function removeItem(idx) {
+            cart.splice(idx, 1); localStorage.setItem('kapem_cart', JSON.stringify(cart));
+            renderCart(); loadMarket();
+        }
+
+        async function checkout() {
+            if(cart.length === 0) return alert("Cart is empty");
+            if(userRole === 'HQ_ADMIN') { if(!confirm("Warning: Admin Test Transaction. Proceed?")) return; } 
+            else { if(!confirm("Confirm total payment?")) return; }
+
+            const btn = document.getElementById('checkoutBtn');
+            btn.innerText = "Processing Transaction..."; btn.disabled = true;
+
+            try {
+                const res = await fetch('http://localhost:3000/api/checkout', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ buyer_id: user.id, buyer_name: user.business_name || user.username, cart: cart })
+                });
+
+                const data = await res.json();
+                if(res.ok && data.status === 'success') {
+                    alert(`✅ Invoice Paid: KES ${data.total.toLocaleString()}\nLogistics dispatched for ${data.bought} items.`);
+                    cart = []; localStorage.removeItem('kapem_cart');
+                    toggleCart(); loadMarket();
+                } else { throw new Error(data.error || "Transaction failed"); }
+            } catch(err) { alert("Checkout Failed: " + err.message); } 
+            finally { btn.innerText = "Confirm & Pay"; btn.disabled = false; }
+        }
+
+        // BUYER HISTORY LOGIC (Fixed JSON Parsing)
+        function toggleOrders() {
+            const modal = document.getElementById('ordersModal');
+            modal.style.display = modal.style.display === 'none' ? 'flex' : 'none';
+            if (modal.style.display === 'flex') loadOrders();
+        }
+
+        async function loadOrders() {
+            const list = document.getElementById('ordersList');
+            list.innerHTML = '<div style="text-align:center; color:#64748b;">Fetching records...</div>';
+            try {
+                const res = await fetch('http://localhost:3000/api/buyer/history', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ buyer_id: user.id })
+                });
+                
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || "Server connection failed");
+                
+                list.innerHTML = '';
+                
+                if(data.length === 0) {
+                    list.innerHTML = '<div style="color:#94a3b8; text-align:center; padding:20px;">No previous orders found.</div>';
+                    return;
+                }
+                
+                data.forEach(order => {
+                    const items = typeof order.items_json === 'string' ? JSON.parse(order.items_json) : order.items_json;
+                    const itemDesc = items.map(i => `${i.qty}kg ${i.type}`).join(', ');
+                    const dateStr = new Date(order.sale_date).toLocaleDateString();
+                    
+                    list.innerHTML += `
+                        <div class="cart-item" style="flex-direction:column; align-items:flex-start;">
+                            <div style="display:flex; justify-content:space-between; width:100%; margin-bottom:5px;">
+                                <strong style="color:var(--text-color)">INV-${order.sale_id.split('-')[0].toUpperCase()}</strong>
+                                <span style="background:rgba(34,197,94,0.1); color:#166534; padding:2px 6px; border-radius:4px; font-size:0.8rem; font-weight:bold;">${order.payment_status}</span>
+                            </div>
+                            <div style="color:#64748b; font-size:0.9rem; margin-bottom:10px;">Items: ${itemDesc}</div>
+                            <div style="display:flex; justify-content:space-between; width:100%; font-size:0.85rem; color:#94a3b8;">
+                                <span>${dateStr}</span>
+                                <strong style="color:var(--primary); font-size:1rem;">KES ${parseFloat(order.total_amount).toLocaleString()}</strong>
+                            </div>
+                        </div>
+                    `;
+                });
+            } catch (err) { 
+                console.error("Order Load Error:", err);
+                list.innerHTML = `<div style="color:#ef4444; text-align:center; font-weight:bold;">Error: ${err.message}</div>`; 
+            }
+        }
+
+        loadMarket();
+    </script>
+</body>
+</html>

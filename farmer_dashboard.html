@@ -4,31 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KAPEM | Farmer Dashboard</title>
+    <link rel="stylesheet" href="global.css">
     <style>
-        :root { --primary: #166534; --bg: #f8fafc; --text: #334155; --panel: #ffffff; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; }
+        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 1fr 2fr; gap: 30px; flex: 1; width: 100%; box-sizing: border-box;}
         
-        /* DYNAMIC NAVBAR */
-        .navbar { background: var(--panel); padding: 15px 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center; }
-        .brand { font-weight: 700; color: var(--primary); font-size: 1.2rem; text-decoration: none; }
-        .nav-links { display: flex; gap: 20px; align-items: center; }
-        .user-badge { background: #f0fdf4; color: var(--primary); padding: 8px 15px; border-radius: 20px; font-weight: bold; font-size: 0.9rem; }
-        
-        .container { max-width: 1200px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: 1fr 2fr; gap: 30px; }
-        
-        /* FORM PANEL */
-        .card { background: var(--panel); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; }
+        .card { background: var(--card-bg); padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid var(--border-color); }
+        h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.85rem; }
-        select, input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; box-sizing: border-box; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; font-size: 0.85rem; color: var(--text-color); }
+        select, input { width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; background: var(--bg-color); color: var(--text-color); }
         button { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { background: #14532d; }
 
-        /* HISTORY PANEL */
         table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th { text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
-        td { padding: 15px 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; }
+        th { text-align: left; padding: 10px; border-bottom: 2px solid var(--border-color); color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
+        td { padding: 15px 10px; border-bottom: 1px solid var(--border-color); font-size: 0.9rem; color: var(--text-color); }
+        
         .status-PENDING { color: #f59e0b; font-weight: bold; }
         .status-APPROVED { color: #22c55e; font-weight: bold; }
         .status-SOLD { color: #0ea5e9; font-weight: bold; }
@@ -37,14 +28,6 @@
     </style>
 </head>
 <body>
-
-    <div class="navbar">
-        <a href="#" class="brand">🚜 KAPEM Farmer Portal</a>
-        <div class="nav-links">
-            <span id="navRole" class="user-badge">Authenticating...</span>
-            <a href="index.html" style="color:#64748b; text-decoration:none; font-weight:bold;" onclick="logout()">Logout</a>
-        </div>
-    </div>
 
     <div class="container">
         <div class="card">
@@ -92,18 +75,16 @@
         </div>
     </div>
 
+    <script src="layout.js"></script>
+
     <script>
-        // 1. SECURITY & ABSTRACTION
         const user = JSON.parse(localStorage.getItem('kapem_user'));
         
         if (!user || user.role !== 'FARMER') {
             alert("Restricted: Farmer Account Required.");
             window.location.href = 'login.html';
-        } else {
-            document.getElementById('navRole').innerText = `🌾 ${user.business_name} (${user.phone})`;
         }
 
-        // 2. SUBMIT PRODUCE
         document.getElementById('farmForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('submitBtn');
@@ -112,7 +93,7 @@
             const payload = {
                 town: document.getElementById('town').value,
                 farmer_name: user.business_name || user.username,
-                phone: user.phone, // Abstracted from user session!
+                phone: user.phone,
                 produce: document.getElementById('produce').value,
                 qty: parseFloat(document.getElementById('qty').value),
                 storage_type: "Standard"
@@ -128,19 +109,18 @@
                 if(res.ok) {
                     alert("Produce successfully submitted to the Shard!");
                     document.getElementById('farmForm').reset();
-                    loadHistory(); // Refresh history immediately
+                    loadHistory();
                 }
             } catch(err) { alert("Error connecting to network."); }
             btn.innerText = "Submit for Warehousing"; btn.disabled = false;
         });
 
-        // 3. FETCH CROSS-SHARD HISTORY
         async function loadHistory() {
             try {
                 const res = await fetch('http://localhost:3000/api/farmer/history', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ phone: user.phone }) // Query by their phone number
+                    body: JSON.stringify({ phone: user.phone })
                 });
                 
                 const data = await res.json();
@@ -159,17 +139,13 @@
                             <td><strong>${item.produce_type}</strong></td>
                             <td>${item.quantity_kg} kg</td>
                             <td class="status-${item.request_status}">${item.request_status}</td>
-                        </tr>
-                    `;
+                        </tr>`;
                 });
             } catch (err) {
                 document.getElementById('historyBody').innerHTML = '<tr><td colspan="4">Error loading data.</td></tr>';
             }
         }
 
-        function logout() { localStorage.removeItem('kapem_user'); }
-
-        // Initial Load
         loadHistory();
     </script>
 </body>

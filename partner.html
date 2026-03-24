@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KAPEM Partner Network</title>
+    <style>
+        :root { --primary: #166534; --dark: #052e16; --accent: #22c55e; --bg: #f0fdf4; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; color: #333; }
+
+        /* HERO SECTION */
+        .hero { background: linear-gradient(135deg, var(--dark), var(--primary)); color: white; padding: 80px 20px; text-align: center; }
+        .hero h1 { margin: 0; font-size: 2.5rem; }
+        .hero p { font-size: 1.1rem; opacity: 0.9; margin-top: 10px; }
+
+        .container { max-width: 900px; margin: -40px auto 50px; padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+
+        /* LEFT SIDE: INFO */
+        .info-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        .benefit { display: flex; gap: 15px; margin-bottom: 25px; }
+        .icon { background: #dcfce7; color: var(--primary); width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: bold; flex-shrink: 0; }
+        .benefit h4 { margin: 0 0 5px 0; }
+        .benefit p { margin: 0; font-size: 0.9rem; color: #666; }
+
+        /* RIGHT SIDE: FORM */
+        .form-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border-top: 5px solid var(--accent); }
+        h2 { margin-top: 0; color: var(--primary); }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; background: #f9fafb; }
+        
+        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: var(--dark); }
+
+        .back-link { display: block; text-align: center; margin-top: 20px; color: #666; text-decoration: none; }
+        
+        @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+
+    <div class="hero">
+        <h1>Join the Logistics Network</h1>
+        <p>Monetize your trucks, warehouses, and supplies by powering Kenya's agriculture.</p>
+    </div>
+
+    <div class="container">
+        <div class="info-card">
+            <h3>Why Partner with KAPEM?</h3>
+            
+            <div class="benefit">
+                <div class="icon">🚛</div>
+                <div>
+                    <h4>Consistent Load Volume</h4>
+                    <p>No more empty return trips. Our distributed database matches your truck with nearby harvest pickups automatically.</p>
+                </div>
+            </div>
+
+            <div class="benefit">
+                <div class="icon">🏭</div>
+                <div>
+                    <h4>Warehouse Utilization</h4>
+                    <p>Turn empty space into revenue. We rent cold storage and dry docking space in 5 major regions.</p>
+                </div>
+            </div>
+
+            <div class="benefit">
+                <div class="icon">💰</div>
+                <div>
+                    <h4>Guaranteed Payments</h4>
+                    <p>All logistics contracts are settled instantly via M-Pesa upon delivery confirmation.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-card">
+            <h2>Partner Application</h2>
+            <form id="partnerForm">
+                <div class="form-group">
+                    <label>Business Type</label>
+                    <select id="type">
+                        <option value="LOGISTICS">Logistics (Transport)</option>
+                        <option value="WAREHOUSE">Warehousing (Storage)</option>
+                        <option value="SUPPLIER">Agri-Inputs Supplier</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Company / Individual Name</label>
+                    <input type="text" required placeholder="e.g. Swift Haulers Ltd">
+                </div>
+
+                <div class="form-group">
+                    <label>Phone Number</label>
+                    <input type="tel" required placeholder="+254...">
+                </div>
+
+                <div class="form-group">
+                    <label>Base of Operations</label>
+                    <select>
+                        <optgroup label="New Expansion Regions">
+                            <option>Western (Kisumu/Kakamega)</option>
+                            <option>Coast (Mombasa/Kilifi)</option>
+                            <option>Northern (Garissa/Turkana)</option>
+                        </optgroup>
+                        <optgroup label="Existing Regions">
+                            <option>Central (Murang'a/Nyeri)</option>
+                            <option>Rift Valley (Naivasha/Nakuru)</option>
+                        </optgroup>
+                    </select>
+                </div>
+
+                <button type="submit">Submit Application</button>
+            </form>
+            <a href="index.html" class="back-link">&larr; Back to Home</a>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('partnerForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = document.querySelector('button');
+            btn.innerHTML = "Processing...";
+            btn.disabled = true;
+
+            setTimeout(() => {
+                alert("✅ Application Received!\n\nReference: PRT-" + Date.now() + "\nOur procurement team will contact you within 24 hours.");
+                window.location.href = 'index.html';
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
