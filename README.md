@@ -1,10 +1,3 @@
-That error occurs because Mermaid is incredibly strict about syntax inside its code blocks. If regular text (like the `*(Note: ...)*` line) accidentally slips inside the ` ```mermaid ` block, or if there is a missing line break before the closing backticks, the GitHub parser crashes. 
-
-Here is the **completely corrected and updated `README.md`**. I have ensured the Mermaid block is perfectly formatted with standard Crow's Foot notation and safely isolated from the text. 
-
-### **Action: Replace your entire `README.md` file with this code:**
-
-```markdown
 # 🚜 KAPEM: Kenya Agricultural Produce Exchange Market
 
 > A Distributed, Cloud-Native Database System for Agricultural Supply Chain Logistics.
@@ -146,12 +139,4 @@ We welcome contributions as we learn and build together! Follow these steps to s
    git push origin feature/AmazingFeature
    ```
 6. **Open a Pull Request:** Go back to the original `psychesupreme/kapem-distributed-system` repository and click "Compare & pull request".
-```
-
-### **How to Push the Fix:**
-Once you have saved the file, run your git commands again:
-```bash
-git add README.md
-git commit -m "fix: Resolve Mermaid ERD parsing error"
-git push origin main
 ```
